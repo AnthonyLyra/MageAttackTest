@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mage Attack: Infinite Stand</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #000; }
+        body { font-family: 'Press Start 2P', cursive; display: flex; justify-content: center; align-items: center; color: #fff; user-select: none; }
+        #game-container { position: relative; width: 100vw; height: 100vh; background-color: #000; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* --- OVERLAY --- */
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; z-index: 10; }
+        .hidden { display: none; }
+        
+        /* --- NEW INDIE START SCREEN --- */
+        #start-screen { background: transparent; justify-content: space-between; padding: 5vh 20px; }
+        #start-screen h1 { font-size: clamp(2.5rem, 7vw, 5rem); color: #ff00ff; }
+        #start-screen p { font-size: clamp(0.8rem, 1.5vw, 1.2rem); color: #ccc; text-shadow: 1px 1px 2px #000; }
+        #start-screen-bottom { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        #difficulty-selection { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .difficulty-button {
+            font-family: 'Press Start 2P', cursive; font-size: clamp(1rem, 2.5vw, 1.5rem); padding: 15px 30px;
+            color: #fff; border: 2px solid #fff; cursor: pointer;
+            background: linear-gradient(45deg, #222, #111);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: all 0.2s ease-in-out;
+        }
+        .difficulty-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(255, 0, 255, 0.4);
+            border-color: #ff00ff;
+            color: #ff00ff;
+            filter: brightness(1.2);
+        }
+
+        /* --- IN-GAME HUD --- */
+        #hud { position: absolute; top: 15px; left: 15px; width: calc(100% - 30px); height: 60px; pointer-events: none; z-index: 5; display: flex; justify-content: space-between; align-items: flex-start; }
+        #hud-left { display: flex; flex-direction: column; gap: 5px; width: 30%; max-width: 350px; }
+        #hud-center { text-align: center; font-size: 24px; color: #fff; text-shadow: 0 0 8px #fff; }
+        #hud-right { text-align: right; font-size: 24px; color: #ffd700; text-shadow: 0 0 8px #ffd700; }
+        .bar-container { position: relative; width: 100%; height: 20px; }
+        .bar { width: 100%; height: 100%; border: 2px solid #fff; background-color: #1a1a1a; }
+        .bar-fill { height: 100%; transition: width 0.2s ease-out; }
+        .bar-text { position: absolute; top: 50%; left: 10px; transform: translateY(-50%); font-size: 12px; color: #fff; text-shadow: 1px 1px 2px #000; }
+        #hp-bar-fill { background-color: #ff0000; }
+        #xp-bar-fill { background-color: #00ffff; }
+        
+        /* --- INVENTORY (NEW STYLE) --- */
+        #inventory-bar { position: absolute; bottom: 20px; left: 20px; display: flex; gap: 4px; z-index: 5; }
+        .inventory-slot { width: 48px; height: 64px; border: 2px solid #888; background-color: rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 4px; }
+        .inventory-slot img { width: 36px; height: 36px; image-rendering: pixelated; }
+        .inventory-slot .stack-count { font-size: 12px; color: #fff; margin-top: 4px; text-shadow: 1px 1px 2px #000; }
+
+        /* Card Selection & Game Over */
+        .ingame-overlay { background-color: rgba(0, 0, 0, 0.9); overflow-y: auto; }
+        .ingame-overlay h2 { color: #00ffff; text-shadow: 0 0 8px #00ffff; }
+        .ingame-overlay h3 { color: #fff; font-size: 1.5rem; margin-top: 15px; }
+        #card-choices { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; margin-top: 20px; }
+        .card { width: 240px; padding: 20px; border: 3px solid; background: #111; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; text-align: center; }
+        .card:hover { transform: translateY(-10px) scale(1.05); }
+        .card-icon-container { width: 60px; height: 60px; margin: 0 auto 15px auto; padding: 5px; border: 2px solid #555; background-color: #000; }
+        .card-icon-container img { width: 100%; height: 100%; image-rendering: pixelated; }
+        .card-title { font-size: 1rem; margin-bottom: 10px; }
+        .card-description { font-size: 0.7rem; line-height: 1.4; color: #ccc; }
+        .card.common { border-color: #fff; } .card.common:hover { box-shadow: 0 0 15px #fff; } .card.common .card-title { color: #fff; }
+        .card.uncommon { border-color: #33ff33; } .card.uncommon:hover { box-shadow: 0 0 15px #33ff33; } .card.uncommon .card-title { color: #33ff33; }
+        .card.epic { border-color: #ff00ff; } .card.epic:hover { box-shadow: 0 0 15px #ff00ff; } .card.epic .card-title { color: #ff00ff; }
+        #reroll-button { margin-top: 30px; padding: 10px 25px; font-family: 'Press Start 2P', cursive; font-size: 1rem; cursor: pointer; background-color: #0055aa; border: 2px solid #00aaff; color: #fff; transition: background-color 0.2s; }
+        #reroll-button:hover:not(:disabled) { background-color: #0077cc; }
+        #reroll-button:disabled { background-color: #333; border-color: #555; color: #888; cursor: not-allowed; }
+        
+        /* Screens */
+        #game-won-screen h1 { color: #ffd700; text-shadow: 0 0 10px #ffd700, 0 0 25px #ffd700; }
+        #info-screen, #card-compendium-screen { text-align: left; max-width: 800px; line-height: 1.8; align-items: flex-start; justify-content: flex-start; padding: 40px; }
+        #info-screen h3, #card-compendium-screen h3 { color: #ff00ff; margin-top: 20px; margin-bottom: 10px; }
+        #info-screen ul { list-style: none; padding-left: 20px; }
+        #info-screen li { margin-bottom: 8px; }
+        #info-screen strong { color: #00ffff; }
+        #info-screen .creator-credit { margin-top: 30px; text-align: center; color: #888; width: 100%;}
+        .restart-button { margin-top: 20px; padding: 15px 30px; font-family: 'Press Start 2P', cursive; font-size: 1.2rem; cursor: pointer; background-color: #1a1a1a; border: 2px solid #fff;}
+        #compendium-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; width: 100%; margin-top: 20px; }
+        .compendium-card { display: flex; align-items: center; background-color: #111; padding: 10px; border-left: 5px solid #fff; }
+        .compendium-card.uncommon { border-left-color: #33ff33; }
+        .compendium-card.epic { border-left-color: #ff00ff; }
+        .compendium-card img { width: 48px; height: 48px; image-rendering: pixelated; margin-right: 15px; background: #000; padding: 4px; }
+        .compendium-card-info .title { font-size: 0.9rem; margin-bottom: 5px; }
+        .compendium-card-info .description { font-size: 0.7rem; color: #ccc; }
+        .rarity-common { color: #fff; } .rarity-uncommon { color: #33ff33; } .rarity-epic { color: #ff00ff; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="hud" class="hidden">
+            <div id="hud-left"><div class="bar-container"><div class="bar"><div id="hp-bar-fill" class="bar-fill"></div></div><span id="hp-text" class="bar-text"></span></div><div class="bar-container"><div class="bar"><div id="xp-bar-fill" class="bar-fill"></div></div><span id="xp-text" class="bar-text"></span></div></div>
+            <div id="hud-center"><span id="wave-text"></span></div>
+            <div id="hud-right"><span id="level-text"></span></div>
+        </div>
+        <div id="inventory-bar" class="hidden"></div>
+        <div id="start-screen" class="overlay">
+            <div><h1>Mage Attack</h1></div>
+            <div id="start-screen-bottom">
+                <p>Controles: A/D para mover, ESPAÇO para pular, Mouse para mirar e atirar.</p>
+                <h2>Escolha a Dificuldade</h2>
+                <div id="difficulty-selection">
+                    <button class="difficulty-button" id="start-easy">Fácil</button>
+                    <button class="difficulty-button" id="start-normal">Normal</button>
+                    <button class="difficulty-button" id="start-hard">Difícil</button>
+                    <button class="difficulty-button" id="info-button">Informações</button>
+                    <button class="difficulty-button" id="compendium-button">Compêndio</button>
+                </div>
+            </div>
+        </div>
+        <div id="info-screen" class="overlay ingame-overlay hidden">
+            <h2>Informações do Jogo</h2>
+            <h3>Objetivo</h3>
+            <p>Sobreviva a <strong>100 ondas</strong> de monstros cada vez mais difíceis, culminando em uma batalha final!</p>
+            <h3>Controles</h3>
+            <ul>
+                <li><strong>A / D</strong>: Mover para Esquerda / Direita</li>
+                <li><strong>ESPAÇO</strong>: Pular</li>
+                <li><strong>MOUSE</strong>: Mirar e Atirar</li>
+            </ul>
+            <h3>Dicas</h3>
+            <ul>
+                <li>A cada nível, você pode escolher uma nova melhoria.</li>
+                <li>A cada 2 ondas, você ganha a chance de <strong>mudar as cartas</strong> oferecidas.</li>
+            </ul>
+            <p class="creator-credit">Um jogo de Caique.</p>
+            <button class="restart-button" id="info-back-button">Voltar</button>
+        </div>
+        <div id="card-compendium-screen" class="overlay ingame-overlay hidden">
+            <h2>Compêndio de Cartas</h2>
+            <div id="compendium-list"></div>
+            <button class="restart-button" id="compendium-back-button">Voltar</button>
+        </div>
+        <div id="card-selection-screen" class="overlay ingame-overlay hidden">
+            <h2>Escolha uma Melhoria</h2>
+            <div id="card-choices"></div>
+            <button id="reroll-button">Mudar Cartas</button>
+        </div>
+        <div id="wave-transition-screen" class="overlay ingame-overlay hidden"><h2 id="wave-complete-text"></h2><h3 id="wave-countdown-text"></h3></div>
+        <div id="game-over-screen" class="overlay ingame-overlay hidden"><h1>Fim de Jogo</h1><h2 id="final-wave-text"></h2><button class="restart-button" id="restart-button-lose">Voltar ao Menu</button></div>
+        <div id="game-won-screen" class="overlay ingame-overlay hidden"><h1>Parabéns!</h1><h2>Você conquistou todas as 100 ondas!</h2><button class="restart-button" id="restart-button-win">Jogar Novamente</button></div>
+    </div>
+
+    <script>
+    const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
+    let WIDTH, HEIGHT;
+    const hud = document.getElementById('hud'), hpBarFill = document.getElementById('hp-bar-fill'), hpText = document.getElementById('hp-text'), xpBarFill = document.getElementById('xp-bar-fill'), xpText = document.getElementById('xp-text'), waveText = document.getElementById('wave-text'), levelText = document.getElementById('level-text'), inventoryBar = document.getElementById('inventory-bar'), startScreen = document.getElementById('start-screen'), cardSelectionScreen = document.getElementById('card-selection-screen'), gameOverScreen = document.getElementById('game-over-screen'), cardChoicesContainer = document.getElementById('card-choices');
+    const waveTransitionScreen = document.getElementById('wave-transition-screen');
+    const gameWonScreen = document.getElementById('game-won-screen');
+    const infoScreen = document.getElementById('info-screen');
+    const cardCompendiumScreen = document.getElementById('card-compendium-screen');
+    const rerollButton = document.getElementById('reroll-button');
+    
+    const playerImg = new Image(), enemyImg = new Image(), enemyImg2 = new Image(), bossImg = new Image();
+    playerImg.src = 'https://i.imgur.com/GHLHFMY.png';
+    enemyImg.src = 'https://i.imgur.com/jJ9x467.png';
+    enemyImg2.src = 'https://i.imgur.com/fOHq0t1.png';
+    bossImg.src = 'https://i.imgur.com/GLUuXG0.png';
+    let playerAspectRatio = 1; 
+    playerImg.onload = () => { if(playerImg.naturalHeight !== 0) { playerAspectRatio = playerImg.naturalWidth / playerImg.naturalHeight; } }
+
+    const ICONS = { catalyst: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyMUEzIDMgMCAwIDAgMTIgMThMNy43NiAxMy43NmE4IDggMCAxIDEgOC40OCAwbC00LjI0IDQuMjRBMyAzIDAgMCAwIDEyIDIxWk0xMiA0YTYgNiAwIDEgMCAwIDEyIDYgNiAwIDAgMCAwLTEyWiIvPjwvc3ZnPg==', vision: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiA0LjVDNyAyLjUgMiA4IDIgMTJjMCA0IDUgOS41IDEwIDcuNSAxMi41IDEzIDE3LjUgMy41IDE5IDJDMTkuNSAzIDE3IDYuNSAxMiA0LjVaTTQgMTJoMi41YS41LjUgMCAwIDEgMCAxSDZWMTJINGExIDEgMCAwIDEgMC0xaDIuNWwuNS0uNWExIDEgMCAwIDEgMS0xaDIuNWExIDEgMCAwIDEgMSAxTC AxMS41di41aDIuNWExIDEgMCAwIDEgMSAxaC0yLjVWMTZhMSAxIDAgMCAxLTEgMUgxM2ExIDEgMCAwIDEtMS0xdi0yLjVhLjUuNSAwIDAgMSAwLTFIMTBhMSAxIDAgMCAxLTEtMVYxMC41YTEgMSAwIDAgMSAxLTFoMi41bDEgMWgxLjVWMTAuNWExIDEgMCAwIDEgMS0xaDFhMSAxIDAgMCAxIDEgMS41VjEyYTEgMSAwIDAgMS0xIDFINi41di0uNWExIDEgMCAwIDEgLTEtMWgtMUExIDEgMCAwIDEgNCAxMloiLz48cGF0aCBkPSJNOS41IDExLjVBMS41IDEuNSAwIDEgMSAxMi41IDExLjUgMS41IDEuNSAwIDAgMSAxMSAxMyAxLjUgMS41IDAgMCAxIDkuNSAxMS41WiIvPjwvc3ZnPg==', growth: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyMkwyLjUgMTIuNWwtMS0xLjVMMiA5LjVMMyA4bDEtMUw1IDIuNWwzLTFMOSAyLjUgMTEgNGwxLTVaTTEyIDIwLjVMOSAxNy41bDItMmgybDIgMi0zIDIuNVptMi0xMUw5IDhsMi0zIDMtMiAxLjUgMy41LTMuNSA0WiIvPjxwYXRoIGQ9Ik0xMC41IDEyLjVIMTl2M0gxMC41ek0xMyAxMGgydjdoLTJ6Ii8+PC9zdmc+', impulse: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiA4VjZoLTJWNEgzVjJoNnYySDd2MmgzVjRIMTR2MmgzVjZoLTJ2Mmg1djJoMXYySDNWMTJoMXYtMmg1Wm00IDR2M2gtMnYySDEzdi0ySDVWMTZoMlYxM2gzdjNoMnYtM2gzeiIvPjxwYXRoIGQ9Ik0zIDNIMVYxaDJ6TTIxIDNWMTloMnYtMnpNMjMgMjFIMVYyM0gyM3oiLz48L3N2Zz4=', renew: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMCA2bC0xIDFoMWwxIDEtMSAxaDF2MWwtMS0xaC0xbC0xIDF2MWwtMS0xdi0xaC0xdi0xSDV2MUg0djFoMXYxSDNsLTEgMS0xIDF2MWwxIDF2MWgxYzAgMSAxIDIgMyAyaDFsMi0xIDEtMiAxLTJoMXYtMWgtMXYtMWgtMXYtM2gtMS0xWiIvPjxwYXRoIGQ9Ik0xNCA2bDEgMWgtMWwtMSAxIDEgMWgtMXYxbDEtMWgxTDE2IDh2MWwxLTF2LTFoMXYtMUgxOXYtMWgtMXYtMUgxN2wxLTEgMS0xdi0xaC0xYy0xIDEgLTEgMi0zIDJoLTFsLTIgMS0xIDIgLTEgMkg4di0xaDF2LTFoMXYtM2gxLTFaIi8+PC9zdmc+', resonance: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAxMGEyIDIgMCAxIDAtMi0yIDIgMiAwIDAgMCAyIDJabS00LjkyIDQuOTJhOCA4IDAgMSAxIDEuNTEtOS4zM0wxMi4zIDdBNCA0IDAgMSAwIDE0IDEyLjZMNi42NiAxNS4xM0E3LjkxIDcuOTEgMCAwIDEgNy4wOCA4LjA4WiIvPjxwYXRoIGQ9Ik0xMS41IDIwLjVBOS41IDkuNSAwIDEgMSA0LjIgOC43TDYgOS43YTcgNyAwIDEgMCAxMC4xLTYuNkwxOC41IDB2NS41aC01LjVMMTMuOSA0YTUgNSAwIDEgMC03IDQuN0wxMiAxMC43bDItMi0uNC0uN2g0LjdsMiAybC0yIDJ2LTQuNWwtMi0yWiIvPjwvc3ZnPg==', swift: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xNCAyTDEzIDVIMTlMMjAgMlpNMTIgNEwxMCA3SDVWNEg0VjExSDVWMThIMTBWMTNIMTJWMTlIMTdWMTRIMTlWM0gxN1ptNiA4SDE1VjRIMTR2OEgxMlYxNUgxNVYyMEgyMFYxM1oiLz48L3N2Zz4=', charge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyQTEwIDEwIDAgMSAwIDIyIDEyIDEwIDEwIDAgMCAwIDEyIDJabS02LjUgOC41aDFWMTloLTF6bTEyIDBoMVYxOWgtMXptLTYgMTFINHYtMWgxMXptMS0xMWgtMVY0aDF6bS00LTJoMVYyaC0xek0xNiAySDh2MWg4ek00IDhIM1Y0aDF6bTE2IDBoLTFWMGgzem0yIDZ2LTFoLTN2MWgyem0tMTggMHYtMWgtM3YxaDJ6Ii8+PHBhdGggZD0iTTggOEg2djhoMnYySDE0VjZoLTJ2Mkg4Wk0xNCA4djZoMlY4eiIvPjwvc3ZnPg==', gush: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMSAxMEgxMHY0SDd2LTRIM1YxNkgxN1YxMEgxM3Y0aC0yeiIvPjxwYXRoIGQ9Ik0xMCA4bDItNGgybC0yIDRIMzVMMTAgNEwxMiA4Wm01IDFoMnY0aC0yem0tOCAwaDJ2NGgtMnoiLz48L3N2Zz4=', leech: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xNCAxOEw4IDEyVjZoMWwxIDEtMSAxaDF2MWwxIDF2MWwtMiAySDdWMTlsMyAzWm0tMi0zaDJ2MmgtMlpNMTIgMTBMODEgMThoLTFMMTEgMTZIMTB2LTFMMTIgMTBaTTkgNmwxIDEgMSAxaDFsMS0xIDEtMUg5WiIvPjwvc3ZnPg==', precision: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMSA4SDhMMyA3IDQgNEwxMCAzaDRsNSA0LTUgNWgtM1ptNiA4bDIgMy0zIDItNC01IDUgM1ptLTggNWwtMy0zbDIgNGgzem0tNy0zbC0zLTNoMy0yek0xMiAzaDNsMyA0LTQgM0gxMFoiLz48cGF0aCBkPSJNOSAxMGgydjJIMTBhMiAyIDAgMSAxIDAtNFptNi00aDJ2MmgtMlptLTIgMmgydjJoLTJ6bTQgMmgydjJoLTJ6bS04IDRoMnYyaC0yem0tNCAyaDJ2MmgtMlptOCAwaDJ2MmgtMlptLTYtNmg0djRIMTEiLz48L3N2Zz4=', assessment: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0zIDNWMjFoMThWM0gzWm0yIDJoMTR2MTBIMVY1Wm0zIDVoOHYySDh6bTAgM2g2djJIMHpNNSA1aDE0djJINXoiLz48L3N2Zz4=', immortal: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiA0bDEgMWgxTDEyIDdoLTFMNiA5djFMNyA5bDIgMnYyaDJ2M2wtMSAyaDF2M2gxdi0zaDFsLTEtMmgyVjExbDIgMmwzLTQtMy0ySDExVjdoMVY2bDEtMloiLz48cGF0aCBkPSJNMTAgOWwtMSAyaDFWMTFIMTBabTQgMGgtMVYxMWgxdjJaTTEyIDExaDJ2M2wtMSAyaDF2M2gtMnYtM2gtMWwxLTJWMTEiLz48L3N2Zz4=' };
+
+    let gameState = 'start', keys = {}, mouse = { x: 0, y: 0, down: false };
+    let player, projectiles = [], enemies = [], platforms = [], particles = [], enemyProjectiles = [];
+    let gameStats, playerUpgrades, difficultyMultiplier;
+    let stars = [];
+    let animationFrameId;
+
+    const WIN_WAVE = 100;
+    const BOSS_WAVE = 8;
+    const CARDS = { catalyst: { name: "Catalisador", description: "Dano de Projétil +2", rarity: "common", apply: (p) => p.stats.projectileDamage += 2, icon: ICONS.catalyst }, vision: { name: "Visão", description: "Chance Crítica +5%", rarity: "common", apply: (p) => p.stats.critChance += 0.05, icon: ICONS.vision }, growth: { name: "Crescimento", description: "HP Máx. +10", rarity: "common", apply: (p) => { p.stats.maxHp += 10; p.hp += 10; }, icon: ICONS.growth }, impulse: { name: "Impulso", description: "Altura do Salto +30%", rarity: "common", apply: (p) => p.stats.jumpForce *= 1.3, icon: ICONS.impulse }, renew: { name: "Renovar", description: "Cura até o máximo de HP", rarity: "common", apply: (p) => p.hp = p.stats.maxHp, icon: ICONS.renew }, resonance: { name: "Ressonância", description: "Velocidade de Ataque +12%", rarity: "common", apply: (p) => p.stats.attackSpeed *= 0.88, icon: ICONS.resonance }, swift: { name: "Veloz", description: "Velocidade de Movimento +20%", rarity: "common", apply: (p) => p.stats.speed *= 1.2, icon: ICONS.swift }, catalyst_plus: { name: "Catalisador+", description: "Dano de Projétil +4", rarity: "uncommon", apply: (p) => p.stats.projectileDamage += 4, icon: ICONS.catalyst }, charge: { name: "Carga", description: "Tamanho do Projétil +20%", rarity: "uncommon", apply: (p) => p.stats.projectileSize *= 1.2, icon: ICONS.charge }, growth_plus: { name: "Crescimento+", description: "HP Máx. +20", rarity: "uncommon", apply: (p) => { p.stats.maxHp += 20; p.hp += 20; }, icon: ICONS.growth }, gush: { name: "Gush", description: "Adiciona +1 Salto", rarity: "uncommon", apply: (p) => p.stats.maxJumps += 1, icon: ICONS.gush }, leech: { name: "Sanguessuga", description: "Roubo de Vida de 3% de Dano", rarity: "uncommon", apply: (p) => p.stats.lifesteal += 0.03, icon: ICONS.leech }, precision: { name: "Precisão", description: "Crítico causa +50% de dano", rarity: "uncommon", apply: (p) => p.stats.critDamage += 0.5, icon: ICONS.precision }, assessment: { name: "Avaliação", description: "+1 escolha de item a partir de agora", rarity: "epic", apply: (p) => p.stats.cardChoices += 1, icon: ICONS.assessment }, growth_plusplus: { name: "Crescimento++", description: "HP Máx. +40", rarity: "epic", apply: (p) => { p.stats.maxHp += 40; p.hp += 40; }, icon: ICONS.growth }, immortal: { name: "Imortal", description: "+1 Reviver.", rarity: "epic", apply: (p) => p.stats.revives += 1, icon: ICONS.immortal }, leech_plus: { name: "Leech+", description: "Roubo de Vida de 9% de Dano", rarity: "epic", apply: (p) => p.stats.lifesteal += 0.09, icon: ICONS.leech }};
+    const GRAVITY = 0.7;
+    const PLATFORM_BLOCK_SIZE = 40;
+    const PROJECTILE_TIERS = [{ levelReq: 1, name: "Míssil Arcano", color: "#ff00ff", baseDamage: 10, draw: drawArcaneMissile },{ levelReq: 5, name: "Lança de Gelo", color: "#00ffff", baseDamage: 18, draw: drawIceLance },{ levelReq: 10, name: "Bola de Fogo", color: "#ff8c00", baseDamage: 25, draw: drawFireball },{ levelReq: 15, name: "Orbe Elétrico", color: "#ffff00", baseDamage: 35, draw: drawLightningOrb },{ levelReq: 20, name: "Raio de Sangue", color: "#8b0000", baseDamage: 50, draw: drawBloodBolt }];
+
+    function createPlayer() { 
+        const height = 112;
+        return { x: 0, y: 0, height, width: height * playerAspectRatio, vx: 0, vy: 0, isGrounded: false, jumps: 0, lastShotTime: 0, level: 1, projectileTier: 0, stats: { maxHp: 100, speed: 7, jumpForce: 16, maxJumps: 1, projectileDamage: 0, attackSpeed: 400, critChance: 0.05, critDamage: 1.5, projectileSize: 10, lifesteal: 0, revives: 0, cardChoices: 3 }, hp: 100, update() { this.vx = 0; if (keys['a']) this.vx = -this.stats.speed; if (keys['d']) this.vx = this.stats.speed; this.x += this.vx; this.vy += GRAVITY; this.y += this.vy; this.isGrounded = false; platforms.forEach(p => { if (this.x < p.x + p.width && this.x + this.width > p.x && this.y < p.y + p.height && this.y + this.height > p.y) { if (this.vy > 0 && this.y + this.height - this.vy <= p.y) { this.y = p.y - this.height; this.vy = 0; this.isGrounded = true; this.jumps = this.stats.maxJumps; } } }); if (this.x < 0) this.x = 0; if (this.x + this.width > WIDTH) this.x = WIDTH - this.width; if (this.y > HEIGHT) this.takeDamage(9999); if (mouse.down && Date.now() - this.lastShotTime > this.stats.attackSpeed) { this.shoot(); } }, draw() { ctx.save(); const centerX = this.x + this.width / 2; if (mouse.x > centerX) { ctx.scale(-1, 1); ctx.drawImage(playerImg, -this.x - this.width, this.y, this.width, this.height); } else { ctx.drawImage(playerImg, this.x, this.y, this.width, this.height); } ctx.restore(); }, jump() { if (this.jumps > 0) { this.vy = -this.stats.jumpForce; this.jumps--; this.isGrounded = false; } }, shoot() { this.lastShotTime = Date.now(); const angle = Math.atan2(mouse.y - (this.y + this.height / 2), mouse.x - (this.x + this.width / 2)); projectiles.push(createProjectile(this.x + this.width / 2, this.y + this.height / 2, angle, this)); }, takeDamage(amount) { this.hp -= amount; createDamageParticle(this.x, this.y, Math.floor(amount), false); if (this.hp <= 0) { if (this.stats.revives > 0) { this.stats.revives--; this.hp = this.stats.maxHp / 2; enemies.forEach(e => e.hp = 0); for(let i = 0; i < 50; i++) particles.push(createHitParticle(this.x, this.y, '#ffd700', 3, 10)); } else { gameState = 'gameover'; } } }, 
+        gainXp(amount) {
+            gameStats.xp += amount;
+            if (gameStats.xp >= gameStats.xpToNextLevel) {
+                gameStats.xp -= gameStats.xpToNextLevel;
+                this.level++;
+                gameStats.xpToNextLevel = Math.floor(100 * Math.pow(1.4, this.level - 1));
+                if (PROJECTILE_TIERS[this.projectileTier + 1]?.levelReq <= this.level) { this.projectileTier++; }
+                gameStats.pendingLevelUp = true;
+            }
+        }}; 
+    }
+    function createProjectile(x, y, angle, player) { const tier = PROJECTILE_TIERS[player.projectileTier]; const isCrit = Math.random() < player.stats.critChance; const totalBaseDamage = tier.baseDamage + player.stats.projectileDamage; const damage = isCrit ? totalBaseDamage * player.stats.critDamage : totalBaseDamage; return { x, y, angle, radius: player.stats.projectileSize, vx: Math.cos(angle) * 18, vy: Math.sin(angle) * 18, damage, isCrit, lifesteal: player.stats.lifesteal, color: tier.color, drawFunc: tier.draw, update() { this.x += this.vx; this.y += this.vy; }, draw() { this.drawFunc(this); } }; }
+    function drawArcaneMissile(p) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.beginPath(); ctx.moveTo(p.radius, 0); ctx.lineTo(-p.radius, -p.radius / 2); ctx.lineTo(-p.radius * 0.7, 0); ctx.lineTo(-p.radius, p.radius / 2); ctx.closePath(); ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 10; ctx.fill(); ctx.restore(); }
+    function drawIceLance(p) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.beginPath(); ctx.moveTo(p.radius * 1.2, 0); ctx.lineTo(-p.radius, -p.radius * 0.4); ctx.lineTo(-p.radius * 0.8, 0); ctx.lineTo(-p.radius, p.radius * 0.4); ctx.closePath(); ctx.strokeStyle = p.color; ctx.fillStyle = "rgba(0, 255, 255, 0.5)"; ctx.shadowColor = p.color; ctx.shadowBlur = 12; ctx.lineWidth = 2; ctx.stroke(); ctx.fill(); ctx.restore(); }
+    function drawFireball(p) { ctx.save(); ctx.beginPath(); ctx.arc(p.x, p.y, p.radius * 0.8, 0, Math.PI * 2); const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 0.8); grad.addColorStop(0, '#ffff00'); grad.addColorStop(0.5, p.color); grad.addColorStop(1, 'transparent'); ctx.fillStyle = grad; ctx.shadowColor = p.color; ctx.shadowBlur = 15; ctx.fill(); ctx.restore(); particles.push(createHitParticle(p.x, p.y, p.color, 2, 1)); }
+    function drawLightningOrb(p) { ctx.save(); ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 15; ctx.fill(); for(let i = 0; i < 2; i++) { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + (Math.random() - 0.5) * 30, p.y + (Math.random() - 0.5) * 30); ctx.strokeStyle = "white"; ctx.lineWidth = 1; ctx.stroke();} ctx.restore(); }
+    function drawBloodBolt(p) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.beginPath(); ctx.moveTo(p.radius * 1.5, 0); ctx.lineTo(-p.radius, 0); ctx.strokeStyle = p.color; ctx.lineWidth = 4; ctx.shadowColor = p.color; ctx.shadowBlur = 10; ctx.stroke(); ctx.restore(); }
+    
+    // --- ENEMY AND BOSS CREATION ---
+    const baseEnemyProto = {
+        takeDamage(amount, lifesteal, isCrit) { const finalDamage = Math.floor(amount); this.hp -= finalDamage; createDamageParticle(this.x + this.width / 2, this.y, finalDamage, isCrit); if (lifesteal > 0 && player.hp < player.stats.maxHp) { player.hp = Math.min(player.stats.maxHp, player.hp + finalDamage * lifesteal); } },
+        draw() {
+            ctx.save();
+            if (this.img && this.img.complete && this.img.naturalHeight !== 0) {
+                if (this.shadowColor) { ctx.shadowColor = this.shadowColor; ctx.shadowBlur = 20; }
+                ctx.drawImage(this.img, this.x, this.y, this.width, this.height);
+            } else { ctx.fillStyle = '#fff'; ctx.fillRect(this.x, this.y, this.width, this.height); }
+            ctx.restore();
+            if (this.hp < this.maxHp) { ctx.fillStyle = '#500'; ctx.fillRect(this.x, this.y - 15, this.width, 8); ctx.fillStyle = '#f00'; ctx.fillRect(this.x, this.y - 15, this.width * (this.hp / this.maxHp), 8); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(this.x, this.y - 15, this.width, 8); }
+        }
+    };
+
+    function createEnemy() {
+        const waveFactor = Math.sqrt(gameStats.wave);
+        const enemyType = Math.random() < 0.7 ? 'descender' : 'flyer';
+        const groundY = HEIGHT - PLATFORM_BLOCK_SIZE;
+
+        if (enemyType === 'descender') {
+            const size = 110;
+            const hp = (25 + waveFactor * 8) * difficultyMultiplier;
+            return Object.assign(Object.create(baseEnemyProto), {
+                x: Math.random() * (WIDTH - size) + 30, y: -size, width: size, height: size, hp, maxHp: hp, 
+                damage: (8 + waveFactor * 1.5) * difficultyMultiplier, descendSpeed: (0.6 + waveFactor * 0.05) * difficultyMultiplier, 
+                xpValue: 15 + gameStats.wave * 2, lastShotTime: Date.now() + Math.random() * 2000, 
+                attackSpeed: Math.max(500, (4000 / difficultyMultiplier) - waveFactor * 100), img: enemyImg, shadowColor: '#fff',
+                shoot() { this.lastShotTime = Date.now(); if (!player) return; const angle = Math.atan2((player.y + player.height/2) - (this.y + this.height/2), (player.x + player.width/2) - (this.x + this.width/2)); enemyProjectiles.push(createEnemyProjectile(this.x + this.width/2, this.y + this.height/2, angle, this.damage)); },
+                update() { 
+                    const targetX = player.x; const distanceX = targetX - this.x; 
+                    this.x += distanceX * 0.004 * difficultyMultiplier;
+                    this.y += this.descendSpeed; 
+                    if (Date.now() - this.lastShotTime > this.attackSpeed) { this.shoot(); } 
+                    if (this.y + this.height > groundY) this.hp = 0; 
+                },
+            });
+        } else { // 'flyer' type
+            const size = 120;
+            const hp = (35 + waveFactor * 10) * difficultyMultiplier;
+            return Object.assign(Object.create(baseEnemyProto), {
+                x: Math.random() < 0.5 ? -size : WIDTH, y: Math.random() * (HEIGHT / 2.5) + 50, width: size, height: size, hp, maxHp: hp, 
+                damage: (10 + waveFactor * 1.2) * difficultyMultiplier, xpValue: 25 + gameStats.wave * 3, lastShotTime: Date.now() + Math.random() * 1500, 
+                attackSpeed: Math.max(400, (3500 / difficultyMultiplier) - waveFactor * 90), img: enemyImg2, 
+                vx: (Math.random() < 0.5 ? 1 : -1) * (0.8 + waveFactor * 0.03), vy: (Math.random() - 0.5) * 1.2,
+                shoot() { this.lastShotTime = Date.now(); if (!player) return; const angle = Math.atan2((player.y + player.height/2) - (this.y + this.height/2), (player.x + player.width/2) - (this.x + this.width/2)); enemyProjectiles.push(createFlyerProjectile(this.x + this.width/2, this.y + this.height/2, angle, this.damage)); },
+                update() { 
+                    this.x += this.vx; this.y += this.vy; 
+                    if (Math.random() < 0.015 || (this.y < 20 && this.vy < 0) || (this.y > HEIGHT - 300 && this.vy > 0)) { this.vy *= -1; }
+                    if ((this.x < 0 && this.vx < 0) || (this.x + this.width > WIDTH && this.vx > 0)) { this.vx *= -1; }
+                    if (Date.now() - this.lastShotTime > this.attackSpeed) { this.shoot(); } 
+                },
+            });
+        }
+    }
+
+    function createBoss() {
+        const size = 250;
+        const hp = 2000 * difficultyMultiplier;
+        return Object.assign(Object.create(baseEnemyProto), {
+            x: WIDTH / 2 - size / 2, y: 100, width: size, height: size,
+            hp, maxHp: hp, damage: 25 * difficultyMultiplier, xpValue: 5000,
+            attackSpeed: 2500, lastShotTime: Date.now() + 3000,
+            img: bossImg, shadowColor: '#ff0000',
+            vx: 1.5 * difficultyMultiplier, vy: 0.5 * difficultyMultiplier, // Flyer movement
+            shoot() {
+                this.lastShotTime = Date.now();
+                const projectileCount = 16;
+                for (let i = 0; i < projectileCount; i++) {
+                    const angle = (i / projectileCount) * Math.PI * 2 + Math.random() * 0.2 - 0.1;
+                    enemyProjectiles.push(createTentacleProjectile(this.x + this.width / 2, this.y + this.height / 2, angle, this.damage));
+                }
+            },
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if ((this.x < 0 && this.vx < 0) || (this.x + this.width > WIDTH && this.vx > 0)) { this.vx *= -1; }
+                 if ((this.y < 20 && this.vy < 0) || (this.y + this.height > HEIGHT/2 && this.vy > 0)) { this.vy *= -1; }
+                if (Date.now() - this.lastShotTime > this.attackSpeed) { this.shoot(); }
+            },
+        });
+    }
+
+    function createEnemyProjectile(x, y, angle, damage) { return { x, y, angle, damage, radius: 7, speed: 5, color: '#ff3333', update() { this.x += Math.cos(this.angle) * this.speed; this.y += Math.sin(this.angle) * this.speed; }, draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.shadowColor = this.color; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0; } }; }
+    function createFlyerProjectile(x, y, angle, damage) { return { x, y, angle, damage, radius: 9, speed: 4, color: '#9400d3', timer: 0, update() { this.x += Math.cos(this.angle) * this.speed; this.y += Math.sin(this.angle) * this.speed; this.timer += 0.1; }, draw() { drawFlyerProjectile(this); } }; }
+    function createTentacleProjectile(x, y, angle, damage) { return { x, y, angle, damage, radius: 10, speed: 7, color: '#D32F2F', update() { this.x += Math.cos(this.angle) * this.speed; this.y += Math.sin(this.angle) * this.speed; }, draw() { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle + Math.PI / 2); ctx.fillStyle = this.color; ctx.shadowColor = '#8B0000'; ctx.shadowBlur = 8; ctx.fillRect(-this.radius / 2, -this.radius, this.radius, this.radius * 2.5); ctx.restore(); } }; }
+    function drawFlyerProjectile(p) { ctx.save(); const pulseRadius = p.radius + Math.sin(p.timer) * 2; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius * 0.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(p.x, p.y, pulseRadius, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+
+    function createHitParticle(x, y, color, size, speed) { const angle = Math.random() * Math.PI * 2; return { x, y, color, size, vx: Math.cos(angle) * Math.random() * speed, vy: Math.sin(angle) * Math.random() * speed, life: 1, update() { this.x += this.vx; this.y += this.vy; this.life -= 0.03; }, draw() { ctx.save(); ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.size, this.size); ctx.restore(); } }; }
+    function createDamageParticle(x, y, amount, isCrit) { particles.push({ x: x + Math.random() * 20 - 10, y: y, text: amount, color: isCrit ? '#ffdd00' : '#ffffff', font: isCrit ? '18px "Press Start 2P"' : '14px "Press Start 2P"', vy: -3, life: 1, update() { this.y += this.vy; this.vy += 0.1; this.life -= 0.02; }, draw() { ctx.save(); ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.font = this.font; ctx.shadowColor = this.color; ctx.shadowBlur = 5; ctx.fillText(this.text, this.x, this.y); ctx.restore(); } }); }
+    function createPlatform(x, y, width, height) { return { x, y, width, height, draw() { const numBlocksX = width / PLATFORM_BLOCK_SIZE; const numBlocksY = height / PLATFORM_BLOCK_SIZE; ctx.lineWidth = 2; ctx.shadowColor = '#fff'; ctx.shadowBlur = 8; for (let i = 0; i < numBlocksX; i++) { for (let j = 0; j < numBlocksY; j++) { const blockX = x + i * PLATFORM_BLOCK_SIZE; const blockY = y + j * PLATFORM_BLOCK_SIZE; const fade = Math.min(1, blockY / (HEIGHT - 100)); ctx.strokeStyle = `rgba(255, 255, 255, ${fade})`; ctx.strokeRect(blockX, blockY, PLATFORM_BLOCK_SIZE, PLATFORM_BLOCK_SIZE); } } ctx.shadowBlur = 0; } }; }
+    
+    // --- GAME LOGIC ---
+    function init() {
+        if(animationFrameId) cancelAnimationFrame(animationFrameId);
+        resizeCanvas();
+        platforms = []; enemyProjectiles = []; projectiles = []; particles = []; enemies = [];
+        const groundY = HEIGHT - PLATFORM_BLOCK_SIZE;
+        platforms.push(createPlatform(0, groundY, WIDTH, PLATFORM_BLOCK_SIZE));
+        platforms.push(createPlatform(0, groundY - PLATFORM_BLOCK_SIZE, PLATFORM_BLOCK_SIZE * 6, PLATFORM_BLOCK_SIZE));
+        platforms.push(createPlatform(0, groundY - PLATFORM_BLOCK_SIZE * 2, PLATFORM_BLOCK_SIZE * 3, PLATFORM_BLOCK_SIZE));
+        platforms.push(createPlatform(WIDTH - PLATFORM_BLOCK_SIZE * 8, groundY - PLATFORM_BLOCK_SIZE * 3, PLATFORM_BLOCK_SIZE * 8, PLATFORM_BLOCK_SIZE));
+        platforms.push(createPlatform(WIDTH / 2 - PLATFORM_BLOCK_SIZE * 3, groundY - PLATFORM_BLOCK_SIZE * 5, PLATFORM_BLOCK_SIZE * 6, PLATFORM_BLOCK_SIZE));
+        player = createPlayer();
+        const highestPlatform = platforms.reduce((prev, curr) => (curr.y < prev.y ? curr : prev));
+        player.x = highestPlatform.x + highestPlatform.width / 2;
+        player.y = highestPlatform.y - player.height;
+
+        gameStats = { wave: 0, xp: 0, xpToNextLevel: 100, pendingLevelUp: false, rerollsAvailable: 1 };
+        playerUpgrades = {};
+        startScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); gameWonScreen.classList.add('hidden'); infoScreen.classList.add('hidden');
+        hud.classList.remove('hidden'); inventoryBar.classList.remove('hidden');
+        updateInventoryUI();
+        startWaveTransition(true);
+    }
+    
+    function startWaveTransition(isFirstWave = false) {
+        gameState = 'wave_transition';
+        let countdown = 3;
+        const completeText = document.getElementById('wave-complete-text');
+        const countdownText = document.getElementById('wave-countdown-text');
+        completeText.textContent = isFirstWave ? "O Jogo Vai Começar!" : `Onda ${gameStats.wave} Completa!`;
+        if (gameStats.wave + 1 === BOSS_WAVE) completeText.textContent = "ALERTA: GRANDE AMEAÇA SE APROXIMANDO!";
+        waveTransitionScreen.classList.remove('hidden');
+        const countdownInterval = setInterval(() => {
+            countdownText.textContent = `Próxima onda em ${countdown}...`;
+            countdown--;
+            if (countdown < 0) {
+                clearInterval(countdownInterval);
+                waveTransitionScreen.classList.add('hidden');
+                nextWave();
+            }
+        }, 1000);
+    }
+    
+    function nextWave() { 
+        gameState = 'playing';
+        gameStats.wave++;
+        if (gameStats.wave > 1 && gameStats.wave % 2 === 0) { gameStats.rerollsAvailable = Math.min(gameStats.rerollsAvailable + 1, 3); }
+        
+        if (gameStats.wave === BOSS_WAVE) {
+            gameStats.enemiesToSpawn = 1; gameStats.enemiesRemaining = 1;
+            enemies.push(createBoss());
+            return;
+        }
+
+        const maxEnemiesOnScreen = 45; 
+        const enemiesThisWave = Math.min(maxEnemiesOnScreen, Math.floor((4 + gameStats.wave * 1.1) * difficultyMultiplier)); 
+        gameStats.enemiesToSpawn = enemiesThisWave; gameStats.enemiesRemaining = enemiesThisWave; 
+        const spawnInterval = setInterval(() => { 
+            if (gameState !== 'playing') { clearInterval(spawnInterval); return; } 
+            if (gameStats.enemiesToSpawn > 0) { enemies.push(createEnemy()); gameStats.enemiesToSpawn--; } 
+            else { clearInterval(spawnInterval); } 
+        }, Math.max(150, 1200 / difficultyMultiplier - gameStats.wave * 8)); 
+    }
+    
+    function generateCardChoices() {
+        cardChoicesContainer.innerHTML = ''; const cardPool = { common: [], uncommon: [], epic: [] };
+        for (const id in CARDS) { const card = { ...CARDS[id], id }; cardPool[card.rarity].push(card); }
+        let choices = []; const numChoices = player.stats.cardChoices;
+        let rarityPool = ['common', 'common', 'common', 'uncommon', 'uncommon']; 
+        if (gameStats.wave > 0 && gameStats.wave % 5 === 0) rarityPool.push('epic');
+        const usedIds = new Set();
+        while (choices.length < numChoices && usedIds.size < Object.keys(CARDS).length) {
+            const rarity = rarityPool[Math.floor(Math.random() * rarityPool.length)];
+            if (cardPool[rarity].length > 0) { const card = cardPool[rarity][Math.floor(Math.random() * cardPool[rarity].length)]; if (!usedIds.has(card.id)) { choices.push(card); usedIds.add(card.id); } }
+        }
+        choices.forEach(card => { 
+            const cardEl = document.createElement('div'); cardEl.className = `card ${card.rarity}`;
+            cardEl.innerHTML = `<div class="card-icon-container"><img src="${card.icon}" alt="${card.name}"></div><div class="card-title">${card.name}</div><div class="card-description">${card.description}</div>`;
+            cardEl.addEventListener('click', () => selectCard(card)); cardChoicesContainer.appendChild(cardEl);
+        });
+    }
+
+    function triggerLevelUpScreen() { 
+        gameState = 'level_up'; cardSelectionScreen.classList.remove('hidden'); 
+        rerollButton.textContent = `Mudar Cartas (${gameStats.rerollsAvailable})`;
+        rerollButton.disabled = gameStats.rerollsAvailable <= 0;
+        generateCardChoices(); 
+    }
+    
+    function selectCard(card) { 
+        card.apply(player); playerUpgrades[card.id] = (playerUpgrades[card.id] || 0) + 1; 
+        updateInventoryUI(); cardSelectionScreen.classList.add('hidden'); 
+        gameState = 'wave_clear';
+    }
+    
+    function showGameOverScreen() { hud.classList.add('hidden'); inventoryBar.classList.add('hidden'); gameOverScreen.classList.remove('hidden'); document.getElementById('final-wave-text').textContent = `Você sobreviveu até a onda ${gameStats.wave}`; }
+    function showGameWonScreen() { hud.classList.add('hidden'); inventoryBar.classList.add('hidden'); gameWonScreen.classList.remove('hidden'); }
+    function handleCollisions() { for (let i = projectiles.length - 1; i >= 0; i--) { const proj = projectiles[i]; for (let j = enemies.length - 1; j >= 0; j--) { const enemy = enemies[j]; const dist = Math.hypot(proj.x - (enemy.x + enemy.width/2), proj.y - (enemy.y + enemy.height/2)); if (dist < proj.radius + enemy.width / 2) { enemy.takeDamage(proj.damage, proj.lifesteal, proj.isCrit); projectiles.splice(i, 1); for(let k = 0; k < 3; k++) particles.push(createHitParticle(proj.x, proj.y, proj.color, 2, 3)); break; } } } for (let i = enemyProjectiles.length - 1; i >= 0; i--) { const proj = enemyProjectiles[i]; const dist = Math.hypot(proj.x - (player.x + player.width/2), proj.y - (player.y + player.height/2)); if (dist < proj.radius + player.width / 2) { player.takeDamage(proj.damage); enemyProjectiles.splice(i, 1); break; } } enemies.forEach((enemy) => { if (player.x < enemy.x + enemy.width && player.x + player.width > enemy.x && player.y < enemy.y + enemy.height && player.y + player.height > enemy.y) { player.takeDamage(enemy.damage * 1.5); enemy.hp = 0; } }); }
+    function updateHUD() { hpBarFill.style.width = `${Math.max(0, (player.hp / player.stats.maxHp)) * 100}%`; hpText.textContent = `${Math.ceil(Math.max(0, player.hp))} / ${player.stats.maxHp}`; xpBarFill.style.width = `${(gameStats.xp / gameStats.xpToNextLevel) * 100}%`; xpText.textContent = `XP`; waveText.textContent = `Onda ${gameStats.wave}`; levelText.textContent = `LVL ${player.level}`; }
+    function updateInventoryUI() { inventoryBar.innerHTML = ''; for (const id in playerUpgrades) { const cardInfo = CARDS[id]; if (cardInfo && cardInfo.icon) { const slot = document.createElement('div'); slot.className = 'inventory-slot'; const img = document.createElement('img'); img.src = cardInfo.icon; const count = document.createElement('span'); count.className = 'stack-count'; count.textContent = playerUpgrades[id]; slot.appendChild(img); slot.appendChild(count); inventoryBar.appendChild(slot); } } }
+
+    function gameLoop() {
+        if (gameState === 'start') { cancelAnimationFrame(animationFrameId); return; }
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+        if (gameState === 'playing') {
+            player.update();
+            enemies.forEach((e, i) => { e.update(); if (e.hp <= 0) { for(let k = 0; k < 10; k++) particles.push(createHitParticle(e.x + e.width/2, e.y + e.height/2, '#fff', 2, 5)); player.gainXp(e.xpValue); enemies.splice(i, 1); gameStats.enemiesRemaining--; } });
+            projectiles.forEach((p, i) => { p.update(); if(p.x < 0 || p.x > WIDTH || p.y < 0 || p.y > HEIGHT) projectiles.splice(i, 1); });
+            enemyProjectiles.forEach((p, i) => { p.update(); if(p.x < 0 || p.x > WIDTH || p.y < 0 || p.y > HEIGHT) enemyProjectiles.splice(i, 1); });
+            particles.forEach((p, i) => { p.update(); if (p.life <= 0) particles.splice(i, 1); });
+            handleCollisions();
+            updateHUD();
+            if (gameStats.enemiesRemaining <= 0 && gameStats.enemiesToSpawn <= 0) { gameState = 'wave_clear'; }
+        }
+        
+        platforms.forEach(p => p.draw());
+        projectiles.forEach(p => p.draw());
+        enemyProjectiles.forEach(p => p.draw());
+        particles.forEach(p => p.draw());
+        enemies.forEach(e => e.draw());
+        if(player) player.draw();
+
+        if (gameState === 'wave_clear') {
+            if (gameStats.wave >= WIN_WAVE) { gameState = 'gamewon'; } 
+            else if (gameStats.pendingLevelUp) { gameStats.pendingLevelUp = false; triggerLevelUpScreen(); } 
+            else { startWaveTransition(); }
+        } else if (gameState === 'gamewon') { showGameWonScreen(); } 
+        else if (gameState === 'gameover') { showGameOverScreen(); }
+        
+        if (gameState !== 'start') { animationFrameId = requestAnimationFrame(gameLoop); }
+    }
+    
+    function startScreenLoop() {
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        stars.forEach(star => {
+            star.y += star.speed;
+            if (star.y > HEIGHT) { star.y = 0; star.x = Math.random() * WIDTH; }
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fill();
+        });
+        if (gameState === 'start') { animationFrameId = requestAnimationFrame(startScreenLoop); }
+    }
+
+    function populateCompendium() {
+        const list = document.getElementById('compendium-list');
+        list.innerHTML = ''; // Clear previous entries
+        Object.values(CARDS).forEach(card => {
+            if (!card.isDuplicate) { // Simple check to avoid duplicate entries from things like catalyst+
+                const cardEl = document.createElement('div');
+                cardEl.className = `compendium-card ${card.rarity}`;
+                cardEl.innerHTML = `
+                    <img src="${card.icon}" alt="${card.name}">
+                    <div class="compendium-card-info">
+                        <div class="title rarity-${card.rarity}">${card.name}</div>
+                        <div class="description">${card.description}</div>
+                    </div>
+                `;
+                list.appendChild(cardEl);
+            }
+        });
+    }
+
+    function handleReroll() { if (gameStats.rerollsAvailable > 0) { gameStats.rerollsAvailable--; rerollButton.textContent = `Mudar Cartas (${gameStats.rerollsAvailable})`; rerollButton.disabled = gameStats.rerollsAvailable <= 0; generateCardChoices(); } }
+
+    // --- EVENT LISTENERS ---
+    window.addEventListener('resize', () => { resizeCanvas(); if (gameState !== 'playing' && gameState !== 'start') { ctx.clearRect(0,0,WIDTH, HEIGHT); if(platforms && platforms.length > 0) platforms.forEach(p => p.draw()); } });
+    window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; if (e.code === 'Space' && (gameState === 'playing' || gameState === 'wave_transition')) { if(player) player.jump(); e.preventDefault(); } });
+    window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+    canvas.addEventListener('mousemove', (e) => { const rect = canvas.getBoundingClientRect(); mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top; });
+    canvas.addEventListener('mousedown', () => { mouse.down = true; });
+    window.addEventListener('mouseup', () => { mouse.down = false; });
+
+    document.getElementById('start-easy').addEventListener('click', () => { difficultyMultiplier = 0.75; init(); gameLoop(); });
+    document.getElementById('start-normal').addEventListener('click', () => { difficultyMultiplier = 1.0; init(); gameLoop(); });
+    document.getElementById('start-hard').addEventListener('click', () => { difficultyMultiplier = 1.5; init(); gameLoop(); });
+    rerollButton.addEventListener('click', handleReroll);
+    
+    document.getElementById('info-button').addEventListener('click', () => { startScreen.classList.add('hidden'); infoScreen.classList.remove('hidden'); });
+    document.getElementById('info-back-button').addEventListener('click', () => { infoScreen.classList.add('hidden'); startScreen.classList.remove('hidden'); });
+    document.getElementById('compendium-button').addEventListener('click', () => { startScreen.classList.add('hidden'); cardCompendiumScreen.classList.remove('hidden'); });
+    document.getElementById('compendium-back-button').addEventListener('click', () => { cardCompendiumScreen.classList.add('hidden'); startScreen.classList.remove('hidden'); });
+    
+    function resetToMenu() {
+        gameOverScreen.classList.add('hidden'); gameWonScreen.classList.add('hidden');
+        startScreen.classList.remove('hidden'); gameState = 'start';
+        startScreenLoop();
+    }
+    document.getElementById('restart-button-lose').addEventListener('click', resetToMenu);
+    document.getElementById('restart-button-win').addEventListener('click', resetToMenu);
+    
+    function resizeCanvas() { WIDTH = window.innerWidth; HEIGHT = window.innerHeight; canvas.width = WIDTH; canvas.height = HEIGHT; }
+    resizeCanvas();
+    for (let i = 0; i < 100; i++) { stars.push({ x: Math.random() * WIDTH, y: Math.random() * HEIGHT, radius: Math.random() * 1.5, speed: Math.random() * 0.5 + 0.1 }); }
+    populateCompendium();
+    startScreenLoop();
+    </script>
+</body>
+</html>
